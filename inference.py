@@ -4,9 +4,9 @@ import requests
 
 # Configuration from Environment Variables
 HF_SPACE_URL = os.getenv("HF_SPACE_URL", "https://athes7755-ai-workflow-optimizer-env.hf.space")
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api-inference.huggingface.co/v1")
+API_BASE_URL = os.getenv("API_BASE_URL")  # Injected by the hackathon evaluator
+API_KEY = os.getenv("API_KEY")             # Injected by the hackathon evaluator
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
-HF_TOKEN = os.getenv("HF_TOKEN")
 
 
 def get_llm_action(obs, task_id):
@@ -14,7 +14,7 @@ def get_llm_action(obs, task_id):
     # Lazy import so the module loads even without a valid token
     try:
         from openai import OpenAI
-        client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN or "none")
+        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
         system_prompt = "You are a professional support specialist bot. You always return valid JSON."
         user_prompt = f"""
