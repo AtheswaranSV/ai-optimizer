@@ -5,8 +5,8 @@ import requests
 
 # ── Evaluator-injected credentials (MUST use these) ──────────────────────────
 HF_SPACE_URL = os.getenv("HF_SPACE_URL", "https://athes7755-ai-workflow-optimizer-env.hf.space")
-API_BASE_URL  = os.getenv("API_BASE_URL")   # Injected by hackathon evaluator
-API_KEY       = os.getenv("API_KEY")        # Injected by hackathon evaluator
+API_BASE_URL  = os.environ["API_BASE_URL"]   # Injected by hackathon evaluator
+API_KEY       = os.environ["API_KEY"]        # Injected by hackathon evaluator
 MODEL_NAME    = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
 
 # ── Expert decision rules (maximises reward against the grader) ───────────────
