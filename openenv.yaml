@@ -1,0 +1,42 @@
+name: ai-workflow-optimizer-env
+version: "1.0.0"
+description: "High-tier workflow optimization task simulating enterprise ticket triage and strategy selection."
+entry_point: "app.main:app"
+
+endpoints:
+  reset: "POST /reset"
+  step: "POST /step"
+  state: "GET /state"
+
+schemas:
+  observation:
+    type: object
+    required: [ticket_id, customer_tier, issue_type, sentiment, description, urgency_hint, history, available_actions]
+    properties:
+      ticket_id: {type: string}
+      customer_tier: {type: string, enum: [free, pro, enterprise]}
+      issue_type: {type: string, enum: [billing, technical, account, other]}
+      sentiment: {type: string, enum: [positive, neutral, negative]}
+      urgency_hint: {type: number, minimum: 0, maximum: 1}
+      description: {type: string}
+      history: {type: array, items: {type: string}}
+      available_actions: {type: array, items: {type: string}}
+  action:
+    type: object
+    required: [classification, priority, response_strategy]
+    properties:
+      classification: {type: string}
+      priority: {type: string, enum: [low, medium, high]}
+      response_strategy: {type: string, enum: [auto_reply, escalate, request_info]}
+  reward_range: [0, 1]
+
+tasks:
+  - id: "easy_1"
+    name: "Simple Refund Request"
+    difficulty: "easy"
+  - id: "medium_1"
+    name: "Production API Outage"
+    difficulty: "medium"
+  - id: "hard_1"
+    name: "Enterprise Account Access Crisis"
+    difficulty: "hard"
