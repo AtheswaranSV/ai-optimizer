@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-server = "server.app:start"
+server = "server.app:main"
 
 [project.urls]
 "Homepage" = "https://huggingface.co/spaces/Athes7755/ai-workflow-optimizer-env"
