@@ -1,7 +1,7 @@
 name: ai-workflow-optimizer-env
 version: "1.0.0"
 description: "High-tier workflow optimization task simulating enterprise ticket triage and strategy selection."
-entry_point: "app.main:app"
+entry_point: "server.app:app"
 
 endpoints:
   reset: "POST /reset"
