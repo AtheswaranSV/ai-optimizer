@@ -1,183 +1,125 @@
 import os
 import json
 import re
-import time
 import requests
+from openai import OpenAI
 
-# ── Evaluator-injected credentials ───────────────────────────────────────────
+# ── Config ────────────────────────────────────────────────────────────────────
 HF_SPACE_URL = os.getenv("HF_SPACE_URL", "https://athes7755-ai-workflow-optimizer-env.hf.space")
-API_BASE_URL  = os.getenv("API_BASE_URL")   # Injected by hackathon evaluator - REQUIRED
-API_KEY       = os.getenv("API_KEY")        # Injected by hackathon evaluator - REQUIRED
-MODEL_NAME    = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
+MODEL_NAME   = os.getenv("MODEL_NAME", "gpt-4o-mini")
 
-SYSTEM_PROMPT = """You are an expert enterprise support triage AI. Analyse support tickets and respond with a JSON action.
+# ── System prompt ─────────────────────────────────────────────────────────────
+SYSTEM_PROMPT = """You are an expert enterprise support triage AI.
 
-CLASSIFICATION (use ROOT CAUSE, not surface label):
+CLASSIFICATION (use ROOT CAUSE, not the surface label):
 - "billing"   → charges, refunds, pricing, payment
-- "technical" → API errors, bugs, login failures, email delivery issues, system outages, failed resets
+- "technical" → API errors, bugs, login failures, email delivery issues, outages, failed password resets
 - "account"   → access permissions, team management (only when no underlying technical failure)
-- "other"     → anything else
+- "other"     → everything else
 
 PRIORITY:
-- "high"   → urgency_hint > 0.6, OR production outage, OR enterprise + negative sentiment
-- "medium" → urgency_hint 0.3-0.6, OR pro customer issue
-- "low"    → urgency_hint < 0.3, free-tier, routine issue
+- "high"   → urgency_hint > 0.6  OR  production outage  OR  enterprise + negative sentiment
+- "medium" → urgency_hint 0.3-0.6  OR  pro customer issue
+- "low"    → urgency_hint < 0.3, free-tier, routine
 
 RESPONSE STRATEGY:
-- "escalate"     → high priority OR pro/enterprise + negative sentiment OR production impact
-- "auto_reply"   → low priority, free-tier, neutral sentiment, routine
-- "request_info" → unclear issue needing more details
+- "escalate"     → high priority  OR  pro/enterprise + negative sentiment  OR  production impact
+- "auto_reply"   → low priority, free-tier, neutral sentiment, routine issue
+- "request_info" → ambiguous, needs more context
 
-CRITICAL: Never auto_reply to enterprise customers with negative sentiment.
-CRITICAL: An "account" ticket whose root cause is a technical failure (email, login system) → classify as "technical".
+RULES:
+- NEVER auto_reply to enterprise + negative sentiment customers.
+- If an "account" ticket's root cause is technical (email delivery, login system) → classify as "technical".
 
-Output ONLY valid JSON, no markdown, no explanation:
+Output ONLY valid JSON, nothing else:
 {"classification": "...", "priority": "...", "response_strategy": "..."}"""
 
 
-def extract_json(text: str) -> dict:
-    """Extract JSON from LLM response, handles markdown code blocks."""
-    # Strip markdown code fences if present
-    text = re.sub(r"```(?:json)?\s*", "", text).strip()
-    # Find first JSON object
-    match = re.search(r'\{[^{}]+\}', text, re.DOTALL)
+def build_prompt(obs: dict) -> str:
+    return f"""Analyse this support ticket and return the optimal action as JSON.
+
+Ticket ID    : {obs['ticket_id']}
+Customer Tier: {obs['customer_tier']}
+Issue Label  : {obs['issue_type']}  (surface label — always classify by ROOT CAUSE)
+Sentiment    : {obs['sentiment']}
+Urgency Hint : {obs['urgency_hint']} (0=none, 1=critical)
+History      : {obs.get('history', [])}
+Description  : {obs['description']}
+
+Return ONLY this JSON (no markdown, no extra text):
+{{"classification": "<billing|technical|account|other>", "priority": "<low|medium|high>", "response_strategy": "<auto_reply|escalate|request_info>"}}"""
+
+
+def parse_json(text: str) -> dict:
+    """Robustly extract JSON from LLM response."""
+    text = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`")
+    match = re.search(r'\{.*?\}', text, re.DOTALL)
     if match:
         return json.loads(match.group())
     return json.loads(text)
 
 
-def build_user_prompt(obs: dict) -> str:
-    return f"""Analyse this support ticket:
-
-Ticket ID    : {obs['ticket_id']}
-Customer Tier: {obs['customer_tier']}
-Issue Label  : {obs['issue_type']}  (surface label — classify by ROOT CAUSE)
-Sentiment    : {obs['sentiment']}
-Urgency Hint : {obs['urgency_hint']} (0=low, 1=critical)
-History      : {obs.get('history', [])}
-Description  : {obs['description']}
-
-Respond with ONLY this JSON:
-{{"classification": "<billing|technical|account|other>", "priority": "<low|medium|high>", "response_strategy": "<auto_reply|escalate|request_info>"}}"""
-
-
-def call_llm(obs: dict) -> dict:
-    """Call the evaluator's LLM proxy. No response_format / temperature for max LiteLLM compatibility."""
-    from openai import OpenAI
-
+def get_action(obs: dict) -> dict:
+    """
+    Call the evaluator's LLM proxy.
+    Uses os.environ[] as instructed — raises KeyError if vars are not injected.
+    """
     client = OpenAI(
-        base_url=API_BASE_URL,
-        api_key=API_KEY
+        base_url=os.environ["API_BASE_URL"],
+        api_key=os.environ["API_KEY"]
     )
 
     completion = client.chat.completions.create(
         model=MODEL_NAME,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user",   "content": build_user_prompt(obs)}
+            {"role": "user",   "content": build_prompt(obs)}
         ],
         max_tokens=200
-        # NOTE: No response_format — LiteLLM proxies often don't support it
-        # NOTE: No temperature  — LiteLLM proxies often don't support it
     )
 
-    content = completion.choices[0].message.content
-    return extract_json(content)
+    raw = completion.choices[0].message.content
+    action = parse_json(raw)
 
+    # Validate and clamp to allowed enums
+    valid_p = {"low", "medium", "high"}
+    valid_s = {"auto_reply", "escalate", "request_info"}
 
-def validate_action(action: dict, obs: dict) -> dict:
-    """Clamp values to valid enums and apply safety rules."""
-    valid_priorities = {"low", "medium", "high"}
-    valid_strategies = {"auto_reply", "escalate", "request_info"}
+    if action.get("priority") not in valid_p:
+        action["priority"] = "high" if float(obs.get("urgency_hint", 0)) > 0.6 else "low"
+    if action.get("response_strategy") not in valid_s:
+        action["response_strategy"] = "escalate"
 
-    classification = str(action.get("classification", obs.get("issue_type", "other"))).lower()
-    priority       = action.get("priority", "medium")
-    strategy       = action.get("response_strategy", "escalate")
+    # Safety: no auto_reply to enterprise + negative
+    if action["response_strategy"] == "auto_reply" \
+            and obs.get("customer_tier") == "enterprise" \
+            and obs.get("sentiment") == "negative":
+        action["response_strategy"] = "escalate"
 
-    if priority not in valid_priorities:
-        priority = "high" if float(obs.get("urgency_hint", 0)) > 0.6 else "low"
-    if strategy not in valid_strategies:
-        strategy = "escalate"
-
-    # Safety: never auto_reply to enterprise + negative
-    if strategy == "auto_reply" and obs.get("customer_tier") == "enterprise" and obs.get("sentiment") == "negative":
-        strategy = "escalate"
-
-    return {"classification": classification, "priority": priority, "response_strategy": strategy}
-
-
-def rule_based_fallback(obs: dict) -> dict:
-    """Used ONLY when API_BASE_URL is not injected (local/offline testing)."""
-    urgency    = float(obs.get("urgency_hint", 0.5))
-    tier       = obs.get("customer_tier", "free")
-    sentiment  = obs.get("sentiment", "neutral")
-    issue_type = obs.get("issue_type", "other")
-    desc       = obs.get("description", "").lower()
-
-    # Root-cause: detect technical failure inside account tickets
-    if issue_type == "account" and any(kw in desc for kw in ["password", "email", "login", "locked", "reset"]):
-        classification = "technical"
-    else:
-        classification = issue_type
-
-    if urgency > 0.6 or (tier == "enterprise" and sentiment == "negative") or "production" in desc or "outage" in desc:
-        priority = "high"
-    elif urgency > 0.3 or tier == "pro":
-        priority = "medium"
-    else:
-        priority = "low"
-
-    if priority == "high" or (tier in ("pro", "enterprise") and sentiment == "negative"):
-        strategy = "escalate"
-    elif priority == "low" and sentiment != "negative" and tier == "free":
-        strategy = "auto_reply"
-    else:
-        strategy = "request_info"
-
-    if strategy == "auto_reply" and tier == "enterprise" and sentiment == "negative":
-        strategy = "escalate"
-
-    return {"classification": classification, "priority": priority, "response_strategy": strategy}
+    return {
+        "classification":    str(action.get("classification", obs["issue_type"])).lower(),
+        "priority":          action["priority"],
+        "response_strategy": action["response_strategy"]
+    }
 
 
 def run_evaluation(task_id: str = "easy_1"):
     print("[START]")
 
     # 1. Reset environment
-    try:
-        resp = requests.post(f"{HF_SPACE_URL}/reset?task_id={task_id}", timeout=30)
-        resp.raise_for_status()
-        obs = resp.json()
-    except Exception as e:
-        print(f"[ERROR] reset failed: {e}")
-        print("[END]")
-        return
-
+    resp = requests.post(f"{HF_SPACE_URL}/reset?task_id={task_id}", timeout=30)
+    resp.raise_for_status()
+    obs = resp.json()
     print(f"[STEP] state={json.dumps(obs)}")
 
-    # 2. Get action
-    # When API_BASE_URL is injected by evaluator → MUST call LLM through their proxy
-    # When not set (local/offline) → use rule-based fallback
-    if API_BASE_URL and API_KEY:
-        try:
-            raw_action  = call_llm(obs)
-            action_data = validate_action(raw_action, obs)
-        except Exception as e:
-            print(f"[WARN] LLM call failed ({e}), using rule-based fallback")
-            action_data = rule_based_fallback(obs)
-    else:
-        print("[INFO] API_BASE_URL not set, using rule-based fallback")
-        action_data = rule_based_fallback(obs)
+    # 2. Call LLM through evaluator proxy (mandatory — no fallback)
+    action_data = get_action(obs)
 
     # 3. Submit action
-    try:
-        step_resp = requests.post(f"{HF_SPACE_URL}/step", json=action_data, timeout=30)
-        step_resp.raise_for_status()
-        result = step_resp.json()
-        reward = result.get("reward", 0)
-    except Exception as e:
-        print(f"[ERROR] step failed: {e}")
-        reward = 0
+    step_resp = requests.post(f"{HF_SPACE_URL}/step", json=action_data, timeout=30)
+    step_resp.raise_for_status()
+    result = step_resp.json()
+    reward = result.get("reward", 0)
 
     print(f"[STEP] action={json.dumps(action_data)} reward={reward}")
     print("[END]")
