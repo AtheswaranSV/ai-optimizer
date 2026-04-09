@@ -25,10 +25,13 @@ def calculate_reward(action: Action, ground_truth: Dict[str, Any], processing_ti
 
     total = (0.35 * class_acc) + (0.25 * prio_corr) + (0.25 * resp_qual) + (0.15 * eff_score)
     
+    # Clamp to strictly (0, 1) — OpenEnv requires scores exclusively between 0 and 1
+    total = round(max(0.001, min(0.999, total)), 4)
+    
     return Reward(
-        classification_accuracy=class_acc,
-        priority_correctness=prio_corr,
-        response_quality=resp_qual,
-        efficiency_score=eff_score,
-        total_reward=round(total, 4)
+        classification_accuracy=round(max(0.001, min(0.999, class_acc)), 4),
+        priority_correctness=round(max(0.001, min(0.999, prio_corr)), 4),
+        response_quality=round(max(0.001, min(0.999, resp_qual)), 4),
+        efficiency_score=round(max(0.001, min(0.999, eff_score)), 4),
+        total_reward=total
     )
