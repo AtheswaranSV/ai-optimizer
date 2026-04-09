@@ -17,7 +17,7 @@ schemas:
       customer_tier: {type: string, enum: [free, pro, enterprise]}
       issue_type: {type: string, enum: [billing, technical, account, other]}
       sentiment: {type: string, enum: [positive, neutral, negative]}
-      urgency_hint: {type: number, minimum: 0, maximum: 1}
+      urgency_hint: {type: number, exclusiveMinimum: 0, exclusiveMaximum: 1}
       description: {type: string}
       history: {type: array, items: {type: string}}
       available_actions: {type: array, items: {type: string}}
@@ -28,7 +28,7 @@ schemas:
       classification: {type: string}
       priority: {type: string, enum: [low, medium, high]}
       response_strategy: {type: string, enum: [auto_reply, escalate, request_info]}
-  reward_range: [0, 1]
+  reward_range: [0.001, 0.999]
 
 tasks:
   - id: "easy_1"

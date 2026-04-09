@@ -20,11 +20,11 @@ class Action(BaseModel):
     response_strategy: Literal["auto_reply", "escalate", "request_info"] = Field(..., description="Action to take")
 
 class Reward(BaseModel):
-    classification_accuracy: float = Field(..., ge=0.0, le=1.0)
-    priority_correctness: float = Field(..., ge=0.0, le=1.0)
-    response_quality: float = Field(..., ge=0.0, le=1.0)
-    efficiency_score: float = Field(..., ge=0.0, le=1.0)
-    total_reward: float = Field(..., ge=0.0, le=1.0)
+    classification_accuracy: float = Field(..., gt=0.0, lt=1.0)
+    priority_correctness: float = Field(..., gt=0.0, lt=1.0)
+    response_quality: float = Field(..., gt=0.0, lt=1.0)
+    efficiency_score: float = Field(..., gt=0.0, lt=1.0)
+    total_reward: float = Field(..., gt=0.0, lt=1.0)
 
 class TaskConfig(BaseModel):
     task_id: str
