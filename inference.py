@@ -3,6 +3,7 @@ import json
 import re
 import time
 from typing import List, Optional
+import httpx
 from openai import OpenAI
 
 # ── Platform Configuration ───────────────────────────────────────────────────
@@ -118,7 +119,12 @@ def run_evaluation(client: OpenAI, task_id: str):
         log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
 if __name__ == "__main__":
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    # Bypassing platform proxy bug by providing clean httpx client
+    client = OpenAI(
+        base_url=API_BASE_URL, 
+        api_key=API_KEY,
+        http_client=httpx.Client(trust_env=False)
+    )
     # Perform evaluation for the required tasks
     for task_id in ["easy_1", "medium_1", "hard_1"]:
         run_evaluation(client, task_id)
