@@ -18,17 +18,17 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=200,
         content={
             "observation": obs.dict(),
-            "reward": 0.01,
+            "reward": 0.1,
             "done": True,
             "info": {
                 "error": "Invalid action payload",
                 "details": str(exc),
                 "reward_details": {
-                    "classification_accuracy": 0.01,
-                    "priority_correctness": 0.01,
-                    "response_quality": 0.01,
-                    "efficiency_score": 0.01,
-                    "total_reward": 0.01
+                    "classification_accuracy": 0.1,
+                    "priority_correctness": 0.1,
+                    "response_quality": 0.1,
+                    "efficiency_score": 0.1,
+                    "total_reward": 0.1
                 }
             }
         }

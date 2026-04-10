@@ -28,7 +28,7 @@ schemas:
       classification: {type: string}
       priority: {type: string, enum: [low, medium, high]}
       response_strategy: {type: string, enum: [auto_reply, escalate, request_info]}
-  reward_range: [0, 1]
+  reward_range: [0.01, 0.99]
 
 tasks:
   - id: "easy_1"
