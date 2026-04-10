@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException, Body, Query
+from fastapi import FastAPI, HTTPException, Body, Query, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from typing import Optional, Dict, Any
 from .models import Observation, Action, Reward
 from .env import env
@@ -7,6 +9,30 @@ app = FastAPI(
     title="AI Workflow Optimizer Environment",
     description="A production-grade environment for evaluating AI Agent decision making in support workflows."
 )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    # Instead of throwing 422 which breaks the task run (reward=0.0), return a valid penalty
+    obs = env.state()
+    return JSONResponse(
+        status_code=200,
+        content={
+            "observation": obs.dict(),
+            "reward": 0.01,
+            "done": True,
+            "info": {
+                "error": "Invalid action payload",
+                "details": str(exc),
+                "reward_details": {
+                    "classification_accuracy": 0.01,
+                    "priority_correctness": 0.01,
+                    "response_quality": 0.01,
+                    "efficiency_score": 0.01,
+                    "total_reward": 0.01
+                }
+            }
+        }
+    )
 
 @app.api_route("/reset", methods=["GET", "POST"])
 async def reset(

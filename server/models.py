@@ -15,9 +15,9 @@ class Observation(BaseModel):
     description: str = Field(..., description="The actual text content of the support ticket")
 
 class Action(BaseModel):
-    classification: str = Field(default="unknown", description="Agent's refined category for the ticket")
-    priority: str = Field(default="unknown", description="Assigned priority level")
-    response_strategy: str = Field(default="unknown", description="Action to take")
+    classification: Optional[str] = Field(default="unknown", description="Agent's refined category for the ticket")
+    priority: Optional[str] = Field(default="unknown", description="Assigned priority level")
+    response_strategy: Optional[str] = Field(default="unknown", description="Action to take")
 
 class Reward(BaseModel):
     classification_accuracy: float = Field(..., ge=0.0, le=1.0)
