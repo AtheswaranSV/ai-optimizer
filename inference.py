@@ -159,8 +159,8 @@ def run_evaluation(task_id="easy_1"):
         sr = requests.post(f"{HF_SPACE_URL}/step", json=action, timeout=30)
         sr.raise_for_status()
         raw_reward = sr.json().get("reward", 0.5)
-        # Clamp strictly to (0, 1) as required by OpenEnv task validation
-        reward = round(max(0.001, min(0.999, float(raw_reward))), 4)
+        # Deep clamp to (0, 1) avoiding platform rounding to 1.0 or 0.0
+        reward = round(max(0.05, min(0.95, float(raw_reward))), 4)
     except Exception as e:
         print(f"[ERROR] step: {e}")
         reward = 0.5  # neutral fallback, never 0 or 1
