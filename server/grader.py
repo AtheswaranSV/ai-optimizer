@@ -33,11 +33,11 @@ def calculate_reward(action: Action, ground_truth: Dict[str, Any], processing_ti
     # Decisions under 5 seconds get 1.0, then decay
     eff_score = 1.0 if processing_time < 5.0 else max(0.0, 1.0 - (processing_time - 5.0) / 10.0)
 
-    # Clamp to strictly (0, 1) using safe margins (0.01 to 0.99)
-    clamped_class = max(0.01, min(0.99, class_acc))
-    clamped_prio = max(0.01, min(0.99, prio_corr))
-    clamped_resp = max(0.01, min(0.99, resp_qual))
-    clamped_eff = max(0.01, min(0.99, eff_score))
+    # Clamp to strictly (0, 1) using deep margins (0.05 to 0.95) to survive platform rounding
+    clamped_class = max(0.05, min(0.95, class_acc))
+    clamped_prio = max(0.05, min(0.95, prio_corr))
+    clamped_resp = max(0.05, min(0.95, resp_qual))
+    clamped_eff = max(0.05, min(0.95, eff_score))
     total = (0.35 * clamped_class) + (0.25 * clamped_prio) + (0.25 * clamped_resp) + (0.15 * clamped_eff)
     
     return Reward(
