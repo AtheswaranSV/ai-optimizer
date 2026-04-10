@@ -3,20 +3,25 @@ from .models import Action, Reward
 
 def calculate_reward(action: Action, ground_truth: Dict[str, Any], processing_time: float) -> Reward:
     # 1. Classification Accuracy (0.35)
-    class_acc = 1.0 if action.classification.lower() == ground_truth["classification"].lower() else 0.0
+    class_str = str(action.classification).lower() if action.classification else "unknown"
+    gt_class_str = str(ground_truth["classification"]).lower()
+    class_acc = 1.0 if class_str == gt_class_str else 0.0
     
     # 2. Priority Correctness (0.25)
     priority_map = {"low": 1, "medium": 2, "high": 3}
-    act_p = priority_map.get(action.priority, 1)
+    act_prio_str = str(action.priority).lower() if action.priority else "unknown"
+    act_p = priority_map.get(act_prio_str, 1)
     gt_p = priority_map.get(ground_truth["priority"], 1)
     # Distance penalty: 1.0 - (dist / max_dist)
     prio_corr = 1.0 - (abs(act_p - gt_p) / 2.0)
     
     # 3. Response Quality (0.25)
-    resp_qual = 1.0 if action.response_strategy == ground_truth["response_strategy"] else 0.0
+    resp_strat_str = str(action.response_strategy).lower() if action.response_strategy else "unknown"
+    gt_resp_strat_str = str(ground_truth["response_strategy"]).lower()
+    resp_qual = 1.0 if resp_strat_str == gt_resp_strat_str else 0.0
     
     # Check for critical failures (e.g., auto-replying to an angry enterprise customer)
-    if action.response_strategy == "auto_reply" and ground_truth["customer_tier"] == "enterprise" and ground_truth["sentiment"] == "negative":
+    if resp_strat_str == "auto_reply" and ground_truth["customer_tier"] == "enterprise" and ground_truth["sentiment"] == "negative":
         resp_qual *= 0.5  # Penalize risky automation
         
     # 4. Efficiency Score (0.15)
